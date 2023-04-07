@@ -1,0 +1,34 @@
+{
+  "name": "Yapi - ts类型生成",
+  "version": "1.0",
+  "manifest_version": 3,
+  "description": "自动生成ts类型",
+  "icons": {
+    "16": "img/logo.png",
+    "48": "img/logo.png",
+    "128": "img/logo.png"
+  },
+  "content_scripts": [
+    {
+      "matches": ["{matchUrl}/*"],
+      "js": ["index.js"],
+      "css": ["css/index.css"],
+      "run_at": "document_end"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "options_page": "/options.html",
+  "permissions": ["history", "tabs", "storage"],
+  "sandbox": {
+    "pages": ["sandbox.html"]
+  },
+  "web_accessible_resources": [
+		{
+			"resources": ["*"],
+			"matches": ["<all_urls>"]
+		}
+	]
+}

@@ -1,0 +1,22 @@
+.btn-wrapper {
+	position: fixed;
+	top: 60px;
+	right: 24px;
+	display: flex;
+	flex-flow: column nowrap;
+	font-size: 12px;
+	background-color: #fff;
+	padding: 2px;
+}
+
+.btn {
+	border: 1px solid rgb(217, 217, 217);
+	background-color: #fff;
+	border-radius: 2px;
+	cursor: pointer;
+	color: #000000d9;
+}
+
+.btn + .btn {
+	margin-top: 4px;
+}
