@@ -5,13 +5,15 @@ import { Option } from './constants'
 
 const Options: Component = () => {
   const [snake2Camel, setSnake2Camel] = createSignal(false)
+  const [withDescription, setWithDescription] = createSignal(false)
   const [generateEnabled, setGenerateEnabled] = createSignal(false)
   const [generateTemplate, setGenerateTemplate] = createSignal('')
   let textarea: HTMLTextAreaElement
 
   onMount(() => {
-    chrome.storage.local.get(['snake2Camel', 'generateEnabled', 'generateTemplate']).then(res => {
+    chrome.storage.local.get(['snake2Camel', 'withDescription', 'generateEnabled', 'generateTemplate']).then(res => {
       setSnake2Camel(res.snake2Camel)
+      setWithDescription(res.withDescription)
       setGenerateEnabled(res.generateEnabled)
       setGenerateTemplate(res.generateTemplate || '')
     })
@@ -25,6 +27,9 @@ const Options: Component = () => {
     switch (key) {
       case Option.snake2Camel:
         setSnake2Camel(checked)
+        break;
+      case Option.withDescription:
+        setWithDescription(checked)
         break;
       case Option.generateEnabled:
         setGenerateEnabled(checked)
@@ -50,6 +55,10 @@ const Options: Component = () => {
       <div class="option-item">
         <label>下划线转小驼峰</label>
         <input type="checkbox" checked={snake2Camel()} onChange={[handleCheckboxChange, Option.snake2Camel]} />
+      </div>
+      <div class="option-item">
+        <label>添加注释</label>
+        <input type="checkbox" checked={withDescription()} onChange={[handleCheckboxChange, Option.withDescription]} />
       </div>
       <div class="option-item">
         <label>启用自定义生成内容</label>

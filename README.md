@@ -11,13 +11,25 @@
 7. 设置界面支持设置字段名下划线转小驼峰，以及自定义生成内容并复制到剪切板
 8. 自定义生成内容示例
 ```js
+function toFirstUpperCase(str = '') {
+  return str.substring(0, 1).toUpperCase() + str.substring(1)
+}
+
+function toCamelString(str = '') {
+  return str.replace(/-(\w)/g, (match, p1) => p1.toUpperCase())
+}
+
 const path = apiData.path
 const functionName = path.split('/').pop()
-const reqTypeName = `Req${functionName.substring(0, 1).toUpperCase() + functionName.substring(1)}`
-const resTypeName = `Res${functionName.substring(0, 1).toUpperCase() + functionName.substring(1)}`
+const functionNameNew = toCamelString(functionName)
+const functionNameNewFirstUpperCase = toFirstUpperCase(functionNameNew)
+const reqTypeName = `Req${functionNameNewFirstUpperCase}`
+const resTypeName = `Res${functionNameNewFirstUpperCase}`
 return `type ${reqTypeName} = ${reqBodyType}
+
 type ${resTypeName} = ${resBodyType}
-export function ${functionName} (data: ${reqTypeName}): Promise<${resTypeName}> {
+
+export function ${functionNameNew} (data: ${reqTypeName}): Promise<${resTypeName}> {
   return axios.${apiData.method.toLowerCase()}(\`${path}\`, {
     method: '${apiData.method}',
     ${apiData.method === 'GET' ? 'params: data' : 'data,'}

@@ -10,6 +10,8 @@ let div: HTMLDivElement
 let generateCopyBtn: HTMLButtonElement
 // 是否下划线转小驼峰
 let snake2Camel = false
+// 是否添加注释
+let withDescription = false
 // 是否启用自定义生成
 let generateEnabled = false
 // 自定义生成模板
@@ -35,6 +37,9 @@ chrome.storage.onChanged.addListener((changes) => {
   if (changes.snake2Camel) {
     snake2Camel = changes.snake2Camel.newValue
   }
+  if (changes.withDescription) {
+    withDescription = changes.withDescription.newValue
+  }
   if (changes.generateEnabled) {
     generateEnabled = changes.generateEnabled.newValue
     if (generateCopyBtn) {
@@ -47,8 +52,9 @@ chrome.storage.onChanged.addListener((changes) => {
 })
 
 // 初始化读取配置项
-chrome.storage.local.get(['snake2Camel', 'generateTemplate', 'generateEnabled']).then((res) => {
+chrome.storage.local.get(['snake2Camel', 'withDescription', 'generateTemplate', 'generateEnabled']).then((res) => {
   snake2Camel = res.snake2Camel || false
+  withDescription = res.withDescription || false
   generateEnabled = res.generateEnabled || false
   generateTemplate = res.generateTemplate || ''
   initActionBtn()
@@ -192,7 +198,13 @@ function genObjectType(data: any, tabCount = 0) {
     }, {} as any) ?? ({} as any)
   const ret = []
   ret.push(`{\n`)
-  Object.entries(data.properties).forEach(([key, value]) => {
+  Object.entries(data.properties).forEach(([key, val]) => {
+    const value = val as any
+    if (value.description && withDescription) {
+      ret.push(
+        `${'  '.repeat(tabCount + 1)}/** ${value.description} */\n`
+      )
+    }
     ret.push(
       `${'  '.repeat(tabCount + 1)}${transformKey(key)}${requiredFieldDict[key] ? ':' : '?:'} ${genDataType(
         value,
