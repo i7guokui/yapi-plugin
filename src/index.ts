@@ -114,9 +114,11 @@ function initActionBtn() {
         case 1:
           ret = apiData.req_body_other ? genDataType(JSON.parse(apiData.req_body_other)) : '{}'
           break
-        case 2:
-          ret = genDataType(JSON.parse(apiData.res_body)?.properties?.data)
+        case 2: {
+          const resBody = JSON.parse(apiData.res_body)
+          ret = genDataType(resBody?.properties?.data ?? resBody)
           break
+        }
         case 3:
           if (!iframe) {
             iframe = document.createElement('iframe')
