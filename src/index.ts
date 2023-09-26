@@ -12,6 +12,10 @@ let generateCopyBtn: HTMLButtonElement
 let snake2Camel = false
 // 是否添加注释
 let withDescription = false
+// 是否启用自定义类型
+let diyKeyTypeEnabled = false
+// 自定义生成模板
+let diyKeyTypeTemplate = ''
 // 是否启用自定义生成
 let generateEnabled = false
 // 自定义生成模板
@@ -19,16 +23,37 @@ let generateTemplate = ''
 // 用于通信的 iframe
 let iframe: HTMLIFrameElement | null = null
 
+if (!iframe) {
+  iframe = document.createElement('iframe')
+  iframe.src = chrome.runtime.getURL('sandbox.html')
+  iframe.style.display = 'none'
+  document.body.appendChild(iframe)
+}
+
+const postMessage = (function () {
+  const promiseArr: any[] = []
+  let index = 0
+  window.addEventListener('message', (e) => {
+    const { data } = e
+    if (data.error) {
+      promiseArr[data.index]?.reject?.(data.error)
+    } else {
+      promiseArr[data.index]?.resolve?.(data.data)
+    }
+  })
+  return function <T = any>(options: { type: Msg; data: Record<string, any> }): Promise<T> {
+    iframe!.contentWindow!.postMessage({ type: options.type, data: options.data, index }, '*')
+    const prom = new Promise<T>((resolve, reject) => {
+      promiseArr[index] = { resolve, reject }
+    })
+    index++
+    return prom
+  }
+})()
+
 chrome.runtime.onMessage.addListener(function (request) {
   if (request.type == Msg.urlUpdate) {
     onUrlChange()
-  }
-})
-
-window.addEventListener('message', e => {
-  const { data } = e
-  if (data.type === Msg.sendExecuteResult) {
-    copyToClipboard(data.data)
   }
 })
 
@@ -39,6 +64,12 @@ chrome.storage.onChanged.addListener((changes) => {
   }
   if (changes.withDescription) {
     withDescription = changes.withDescription.newValue
+  }
+  if (changes.diyKeyTypeEnabled) {
+    diyKeyTypeEnabled = changes.diyKeyTypeEnabled.newValue
+  }
+  if (changes.diyKeyTypeTemplate) {
+    diyKeyTypeTemplate = changes.diyKeyTypeTemplate.newValue
   }
   if (changes.generateEnabled) {
     generateEnabled = changes.generateEnabled.newValue
@@ -52,13 +83,24 @@ chrome.storage.onChanged.addListener((changes) => {
 })
 
 // 初始化读取配置项
-chrome.storage.local.get(['snake2Camel', 'withDescription', 'generateTemplate', 'generateEnabled']).then((res) => {
-  snake2Camel = res.snake2Camel || false
-  withDescription = res.withDescription || false
-  generateEnabled = res.generateEnabled || false
-  generateTemplate = res.generateTemplate || ''
-  initActionBtn()
-})
+chrome.storage.local
+  .get([
+    'snake2Camel',
+    'withDescription',
+    'generateTemplate',
+    'generateEnabled',
+    'diyKeyTypeEnabled',
+    'diyKeyTypeTemplate',
+  ])
+  .then((res) => {
+    snake2Camel = res.snake2Camel || false
+    withDescription = res.withDescription || false
+    diyKeyTypeEnabled = res.diyKeyTypeEnabled || false
+    diyKeyTypeTemplate = res.diyKeyTypeTemplate || ''
+    generateEnabled = res.generateEnabled || false
+    generateTemplate = res.generateTemplate || ''
+    initActionBtn()
+  })
 
 // url 变化时判断是否需要显示按钮
 function onUrlChange() {
@@ -84,7 +126,7 @@ function initActionBtn() {
   div.addEventListener('click', async (e) => {
     try {
       let apiId = ''
-      let apiData = null
+      let apiData: any = null
       const match = /\/project\/\d+\/interface\/api\/(\d+)/.exec(location.href)
       if (match) {
         apiId = match[1]
@@ -104,38 +146,35 @@ function initActionBtn() {
         currentApiId = apiId
         currentApiData = apiData
       }
-
+      function getResType() {
+        const resBody = JSON.parse(apiData.res_body)
+        return genDataType(resBody)
+      }
       const index = [...div.children].findIndex((it) => e.target === it)
       let ret = ''
       switch (index) {
         case 0:
-          ret = genQueryType(apiData.req_query)
+          ret = await handleDiyKeyType(genQueryType(apiData.req_query))
           break
         case 1:
-          ret = apiData.req_body_other ? genDataType(JSON.parse(apiData.req_body_other)) : '{}'
+          ret = await handleDiyKeyType(apiData.req_body_other ? genDataType(JSON.parse(apiData.req_body_other)) : '{}')
           break
-        case 2: {
-          const resBody = JSON.parse(apiData.res_body)
-          ret = genDataType(resBody?.properties?.data ?? resBody)
+        case 2:
+          ret = await handleDiyKeyType(getResType())
           break
-        }
         case 3:
-          if (!iframe) {
-            iframe = document.createElement('iframe')
-            iframe.src = chrome.runtime.getURL('sandbox.html')
-            iframe.style.display = 'none'
-            document.body.appendChild(iframe)
-            await new Promise(resolve => {
-              iframe!.onload = resolve
-            })
-          }
-          iframe.contentWindow!.postMessage({ type: Msg.executeFunc, data: {
-            queryType: genQueryType(apiData.req_query),
-            reqBodyType: apiData.req_body_other ? genDataType(JSON.parse(apiData.req_body_other)) : '{}',
-            resBodyType: genDataType(JSON.parse(apiData.res_body)?.properties?.data),
-            apiData,
-            generateTemplate
-          } }, '*');
+          ret = await postMessage({
+            type: Msg.executeFunc,
+            data: {
+              queryType: await handleDiyKeyType(genQueryType(apiData.req_query)),
+              reqBodyType: await handleDiyKeyType(
+                apiData.req_body_other ? genDataType(JSON.parse(apiData.req_body_other)) : '{}'
+              ),
+              resBodyType: await handleDiyKeyType(getResType()),
+              apiData,
+              generateTemplate,
+            },
+          })
           break
         default:
           break
@@ -189,7 +228,7 @@ function genDataType(data: any, tabCount = 0) {
 }
 
 // 生成对象类型声明
-function genObjectType(data: any, tabCount = 0) {
+function genObjectType(data: any, tabCount = 0): string {
   if (!data.properties) {
     return '{}'
   }
@@ -203,9 +242,7 @@ function genObjectType(data: any, tabCount = 0) {
   Object.entries(data.properties).forEach(([key, val]) => {
     const value = val as any
     if (value.description && withDescription) {
-      ret.push(
-        `${'  '.repeat(tabCount + 1)}/** ${value.description} */\n`
-      )
+      ret.push(`${'  '.repeat(tabCount + 1)}/** ${value.description} */\n`)
     }
     ret.push(
       `${'  '.repeat(tabCount + 1)}${transformKey(key)}${requiredFieldDict[key] ? ':' : '?:'} ${genDataType(
@@ -219,7 +256,7 @@ function genObjectType(data: any, tabCount = 0) {
 }
 
 // 生成数组类型声明
-function genArrayType(data: any, tabCount = 0): any {
+function genArrayType(data: any, tabCount = 0): string {
   const { items } = data
   if (['string', 'boolean', 'number'].includes(items.type)) {
     return `${data.items.type}[]`
@@ -244,4 +281,12 @@ function transformKey(key = '') {
     return key.replace(/_(\w)/g, (match, p1) => p1.toUpperCase())
   }
   return key
+}
+
+// 处理自定义 key 和 type 处理逻辑
+async function handleDiyKeyType(typeStr: string): Promise<string> {
+  if (diyKeyTypeEnabled && diyKeyTypeTemplate?.trim()) {
+    return await postMessage({ type: Msg.diyKeyType, data: { typeStr, diyKeyTypeTemplate } })
+  }
+  return typeStr
 }

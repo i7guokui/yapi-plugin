@@ -23,6 +23,7 @@ build({
   // minify: true,
   outdir: 'public',
   bundle: true,
+  format: 'esm',
   write: true,
   allowOverwrite: true,
   plugins: [solidPlugin()]
